@@ -1,13 +1,19 @@
 import 'package:dart_dfu/utils.dart';
-import 'package:nrfdfu/nrfdfu.dart' as nrfdfu;
 
 import 'package:bluez/bluez.dart';
 
-void start_dfu(BlueZDevice device) async {
+Future<void> start_dfu(BlueZDevice device) async {
 
   await device.connect();
 
+  // // Get GATT services
+  // final services = await device.getServices();
+  //
+  // // For this example, just pick the first characteristic
+  // final characteristics = await services.first.getCharacteristics();
+
   for (var service in device.gattServices) {
+
     print('  Service ${service.uuid}');
     for (var characteristic in service.characteristics) {
       String characteristicValue;
@@ -38,10 +44,14 @@ void start_dfu(BlueZDevice device) async {
     }
   }
 
-  // TODO
+
+  // Disconnect from the device
+  await device.disconnect();
+  print('Disconnected from device.');
+
 }
 
-void main(List<String> arguments) async {
+Future<void> main_fct(String devName) async {
 
   var client = BlueZClient();
   await client.connect();
@@ -55,24 +65,50 @@ void main(List<String> arguments) async {
   var adapter = client.adapters[0];
   debugPrint('Bluetooth adapter ${adapter.name}');
 
-  debugPrint('Searching for devices on ${adapter.name}...');
+  bool wasFound = false;
+  debugPrint('Looking for devices on ${adapter.name}...');
   for (var device in client.devices) {
     print('  ${device.address} ${device.name}');
+    if (device.name == devName) {
+      await start_dfu(device);
+      wasFound = true;
+    }
   }
 
-  client.deviceAdded.listen((device) {
-    debugPrint('Scanned: ${device.name} @ ${device.address} ' );
-    if (device.name == arguments[1]) {
-      start_dfu(device);
-      adapter.stopDiscovery();
+  if (!wasFound) {
+
+    client.deviceAdded.listen((device) {
+      debugPrint('Scanned: ${device.name} @ ${device.address} ' );
+    });
+
+    debugPrint('Device no known, scanning...');
+
+    await adapter.startDiscovery();
+    await Future.delayed(Duration(seconds: 7));
+    await adapter.stopDiscovery();
+
+    for (var device in client.devices) {
+      print('  ${device.address} ${device.name}');
+      if (device.name == devName) {
+        start_dfu(device);
+        wasFound = true;
+      }
     }
-  });
 
-  await adapter.startDiscovery();
-
-  await Future.delayed(Duration(seconds: 15));
-
-  await adapter.stopDiscovery();
+    if (!wasFound) {
+      debugPrint('Device not found, closing');
+    }
+  }
 
   await client.close();
+}
+
+void main(List<String> arguments) {
+
+  if (arguments.isEmpty) {
+    debugPrint('Please specify device name');
+    return;
+  }
+
+  main_fct(arguments[0]);
 }
