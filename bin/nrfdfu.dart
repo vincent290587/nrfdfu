@@ -2,6 +2,39 @@ import 'package:dart_dfu/utils.dart';
 
 import 'package:bluez/bluez.dart';
 
+class MyAgent extends BlueZAgent {
+  @override
+  Future<BlueZAgentPinCodeResponse> requestPinCode(BlueZDevice device) async {
+    return BlueZAgentPinCodeResponse.success('1234');
+  }
+
+  @override
+  Future<BlueZAgentResponse> displayPinCode(
+      BlueZDevice device, String pinCode) async {
+    print('PinCode $pinCode');
+    return BlueZAgentResponse.success();
+  }
+
+  @override
+  Future<BlueZAgentPasskeyResponse> requestPasskey(BlueZDevice device) async {
+    return BlueZAgentPasskeyResponse.success(1234);
+  }
+
+  @override
+  Future<BlueZAgentResponse> displayPasskey(
+      BlueZDevice device, int passkey, int entered) async {
+    print('Passkey $passkey');
+    return BlueZAgentResponse.success();
+  }
+
+  @override
+  Future<BlueZAgentResponse> requestConfirmation(
+      BlueZDevice device, int passkey) async {
+    print('Confirmed with passkey $passkey');
+    return BlueZAgentResponse.success();
+  }
+}
+
 Future<void> start_dfu(BlueZDevice device) async {
 
   print('Connecting to device...');
@@ -66,6 +99,13 @@ Future<void> main_fct(String devName) async {
   var adapter = client.adapters[0];
   debugPrint('Bluetooth adapter ${adapter.name}');
 
+  // Register agent to handle pairing requests.
+  var agent = MyAgent();
+  await client.registerAgent(agent);
+
+  // Request that our agent is used.
+  await client.requestDefaultAgent();
+
   bool wasFound = false;
   debugPrint('Looking for devices on ${adapter.name}...');
   for (var device in client.devices) {
@@ -73,6 +113,7 @@ Future<void> main_fct(String devName) async {
     if (device.name == devName) {
       await start_dfu(device);
       wasFound = true;
+      break;
     }
   }
 
@@ -82,7 +123,7 @@ Future<void> main_fct(String devName) async {
       debugPrint('Scanned: ${device.name} @ ${device.address} ' );
     });
 
-    debugPrint('Device no known, scanning...');
+    debugPrint('Device not known, scanning...');
 
     await adapter.startDiscovery();
     await Future.delayed(Duration(seconds: 7));
@@ -93,6 +134,7 @@ Future<void> main_fct(String devName) async {
       if (device.name == devName) {
         wasFound = true;
         await start_dfu(device);
+        break;
       }
     }
 
