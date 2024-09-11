@@ -4,6 +4,7 @@ import 'package:bluez/bluez.dart';
 
 Future<void> start_dfu(BlueZDevice device) async {
 
+  print('Connecting to device...');
   await device.connect();
 
   // // Get GATT services
@@ -90,8 +91,8 @@ Future<void> main_fct(String devName) async {
     for (var device in client.devices) {
       print('  ${device.address} ${device.name}');
       if (device.name == devName) {
-        start_dfu(device);
         wasFound = true;
+        await start_dfu(device);
       }
     }
 
